@@ -1,0 +1,51 @@
+morpho <- readDiscreteCharacterData("Cinctans.nex")
+
+# Get the names and number of species in the analysis
+taxa <- morpho.names()
+num_taxa <- morpho.size()
+# Number of branches in a rooted tree = 2*(number of taxa) - 2
+num_branches <- 2 * num_taxa - 2
+moves = VectorMoves()
+monitors = VectorMonitors()
+br_len_lambda ~ dnExp(0.2)
+moves.append(mvScale(br_len_lambda, weight=2))
+phylogeny ~ dnUniformTopologyBranchLength(taxa, branchLengthDistribution=dnExponential(br_len_lambda))
+moves.append(mvNNI(phylogeny, weight=num_branches/2.0))
+moves.append(mvSPR(phylogeny, weight=num_branches/10.0))
+moves.append(mvBranchLengthScale(phylogeny, weight=num_branches))
+tree_length := phylogeny.treeLength()
+alpha_morpho ~ dnUniform( 0, 1E6 )
+   rates_morpho := fnDiscretizeGamma( alpha_morpho, alpha_morpho, 4 )
+   #Moves on the parameters of the Gamma distribution.
+   moves.append(mvScale(alpha_morpho, lambda=1, weight=2.0))
+   morpho_bs[1] <- morpho
+   morpho_bs[1].setNumStatesPartition(4)
+   morpho
+   lambda ~ dnExponential( 1 )
+   mu ~ dnExponential( 1 )
+   lambda.setValue( 3 )
+   mu.setValue( 1 )
+   Q <- fnFreeK([ [  0.0, lambda,    0.0,    0.0],
+                  [   mu,    0.0, lambda,    0.0],
+                  [  0.0,     mu,    0.0, lambda],
+                  [  0.0,    0.0,     mu,    0.0] ], matrixExponentialMethod="scalingAndSquaring")
+  Q
+  Q.getTransitionProbabilities(rate=.1)
+  q <- fnOrderedRateMatrix(4, lambda, mu)
+  q
+  q.getTransitionProbabilities(rate = .1)
+
+   m_morph ~ dnPhyloCTMC( tree=phylogeny,
+                               Q=q,
+                               siteRates=rates_morpho,
+                               type="Standard")
+
+   # attach the data
+   m_morph.clamp(morpho_bs[1])
+
+  mymodel = model(phylogeny)
+     monitors.append( mnModel(filename="output/mk_gamma.log", printgen=10))
+          monitors.append( mnModel(filename="output/mk_gamma.log", printgen=10))
+#              monitors.append( mnModel(filename="output/mk_gamma.log", printgen=10))
+#
+#                      mymcmc.run(generations=1000, tuningInterval=200)
